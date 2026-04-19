@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Budget">
+<meta name="theme-color" content="#ffffff">
+<title>Budget Tracker</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  :root {
+    --bg: #f9f9f8; --card: #ffffff; --border: rgba(0,0,0,0.1);
+    --text: #111827; --muted: #6B7280; --accent: #185FA5;
+    --green: #0F6E56; --red: #A32D2D; --purple: #534AB7;
+    --radius: 12px; --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; max-width: 430px; margin: 0 auto; }
+  .app { display: flex; flex-direction: column; min-height: 100vh; padding-bottom: 80px; }
+
+  /* Header */
+  .header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px 12px; background: var(--card); border-bottom: 0.5px solid var(--border); position: sticky; top: 0; z-index: 10; }
+  .header-title { font-size: 18px; font-weight: 600; }
+  .header-actions { display: flex; gap: 8px; align-items: center; }
+  .icon-btn { background: none; border: none; cursor: pointer; padding: 6px; border-radius: 8px; color: var(--muted); font-size: 20px; display: flex; align-items: center; }
+  .icon-btn:active { background: #f3f4f6; }
+
+  /* Tab bar */
+  .tab-bar { display: flex; background: var(--card); border-bottom: 0.5px solid var(--border); position: sticky; top: 57px; z-index: 9; }
+  .tab { flex: 1; padding: 11px 0; text-align: center; font-size: 13px; font-weight: 500; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; transition: all 0.15s; }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* Content */
+  .content { padding: 16px 16px 0; flex: 1; }
+
+  /* Net worth */
+  .nw-card { background: var(--card); border-radius: var(--radius); padding: 20px; margin-bottom: 12px; text-align: center; border: 0.5px solid var(--border); }
+  .nw-label { font-size: 12px; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .nw-value { font-size: 36px; font-weight: 600; letter-spacing: -0.5px; }
+  .nw-sub { font-size: 13px; color: var(--muted); margin-top: 4px; }
+
+  /* Metric grid */
+  .metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+  .metric { background: var(--card); border-radius: var(--radius); padding: 14px; border: 0.5px solid var(--border); }
+  .metric-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 5px; }
+  .metric-value { font-size: 20px; font-weight: 600; }
+  .c-green { color: var(--green); }
+  .c-red { color: var(--red); }
+  .c-blue { color: var(--accent); }
+  .c-purple { color: var(--purple); }
+
+  /* Type breakdown */
+  .breakdown-card { background: var(--card); border-radius: var(--radius); padding: 0; margin-bottom: 12px; border: 0.5px solid var(--border); overflow: hidden; }
+  .breakdown-title { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; padding: 12px 16px 10px; border-bottom: 0.5px solid var(--border); }
+  .breakdown-row { display: flex; justify-content: space-between; align-items: center; padding: 11px 16px; border-bottom: 0.5px solid var(--border); font-size: 14px; }
+  .breakdown-row:last-child { border-bottom: none; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; margin-right: 10px; display: inline-block; flex-shrink: 0; }
+  .breakdown-name { display: flex; align-items: center; color: var(--text); }
+  .breakdown-amount { font-weight: 500; }
+
+  /* Sync bar */
+  .sync-bar { display: flex; gap: 8px; margin-bottom: 12px; }
+  .sync-btn { flex: 1; padding: 10px; border-radius: 10px; font-size: 13px; font-weight: 500; cursor: pointer; border: 0.5px solid var(--border); background: var(--card); color: var(--text); display: flex; align-items: center; justify-content: center; gap: 6px; }
+  .sync-btn:active { opacity: 0.7; }
+  .sync-btn.primary { background: var(--accent); color: white; border-color: var(--accent); }
+  .sync-btn.danger { background: #FEF2F2; color: var(--red); border-color: #FECACA; }
+
+  /* Accounts view */
+  .section-header { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; padding: 14px 0 8px; }
+  .account-card { background: var(--card); border-radius: var(--radius); margin-bottom: 8px; border: 0.5px solid var(--border); overflow: hidden; }
+  .account-row { display: flex; align-items: center; padding: 12px 14px; gap: 12px; }
+  .acct-icon { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
+  .acct-info { flex: 1; min-width: 0; }
+  .acct-name { font-size: 14px; font-weight: 500; }
+  .acct-type { font-size: 12px; color: var(--muted); }
+  .acct-input { width: 100px; text-align: right; font-size: 15px; font-weight: 500; border: none; background: none; color: var(--text); font-family: var(--font); outline: none; padding: 4px 0; border-bottom: 1.5px solid transparent; transition: border-color 0.15s; }
+  .acct-input:focus { border-bottom-color: var(--accent); }
+  .acct-input.negative { color: var(--red); }
+
+  /* Save button */
+  .save-bar { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 430px; padding: 12px 16px; background: var(--bg); border-top: 0.5px solid var(--border); z-index: 20; }
+  .save-btn { width: 100%; padding: 14px; border-radius: var(--radius); font-size: 15px; font-weight: 600; cursor: pointer; border: none; background: var(--accent); color: white; }
+  .save-btn:active { opacity: 0.85; }
+  .save-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  /* Settings panel */
+  .settings-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 30; display: flex; align-items: flex-end; }
+  .settings-panel { background: var(--card); border-radius: 20px 20px 0 0; padding: 24px 20px 40px; width: 100%; max-height: 85vh; overflow-y: auto; }
+  .settings-title { font-size: 17px; font-weight: 600; margin-bottom: 20px; }
+  .field { margin-bottom: 16px; }
+  .field label { font-size: 12px; font-weight: 500; color: var(--muted); display: block; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .field input { width: 100%; padding: 11px 12px; border-radius: 10px; border: 0.5px solid var(--border); background: var(--bg); color: var(--text); font-size: 14px; font-family: var(--font); outline: none; }
+  .field input:focus { border-color: var(--accent); }
+  .settings-save { width: 100%; padding: 13px; border-radius: var(--radius); font-size: 15px; font-weight: 600; border: none; background: var(--accent); color: white; cursor: pointer; margin-top: 4px; }
+
+  /* Toast */
+  .toast { position: fixed; top: 70px; left: 50%; transform: translateX(-50%); background: #1F2937; color: white; padding: 10px 18px; border-radius: 20px; font-size: 13px; font-weight: 500; z-index: 50; opacity: 0; transition: opacity 0.2s; pointer-events: none; white-space: nowrap; }
+  .toast.show { opacity: 1; }
+
+  /* Auth banner */
+  .auth-banner { background: #EFF6FF; border: 0.5px solid #BFDBFE; border-radius: var(--radius); padding: 14px 16px; margin-bottom: 12px; display: flex; align-items: center; gap: 12px; }
+  .auth-banner p { font-size: 13px; color: #1E40AF; flex: 1; }
+  .auth-banner button { background: var(--accent); color: white; border: none; padding: 7px 14px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; flex-shrink: 0; }
+
+  /* Status dot */
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+  .status-dot.connected { background: #10B981; }
+  .status-dot.disconnected { background: #EF4444; }
+  .status-dot.pending { background: #F59E0B; }
+
+  .updated-text { font-size: 11px; color: var(--muted); text-align: center; padding: 8px 0 16px; }
+
+  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.4); border-top-color: white; border-radius: 50%; animation: spin 0.6s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .g-signin-wrapper { display: flex; justify-content: center; padding: 8px 0; }
+</style>
+</head>
+<body>
+<div class="app" id="app">
+
+  <div class="header">
+    <span class="header-title">💰 Budget</span>
+    <div class="header-actions">
+      <div id="sync-status" style="font-size:12px; color: var(--muted); display:flex; align-items:center;">
+        <span class="status-dot disconnected" id="status-dot"></span>
+        <span id="status-text">Not connected</span>
+      </div>
+      <button class="icon-btn" onclick="openSettings()" title="Settings">⚙️</button>
+    </div>
+  </div>
+
+  <div class="tab-bar">
+    <div class="tab active" id="tab-dashboard" onclick="switchTab('dashboard')">Dashboard</div>
+    <div class="tab" id="tab-accounts" onclick="switchTab('accounts')">Accounts</div>
+    <div class="tab" id="tab-savings" onclick="switchTab('savings')">Savings</div>
+  </div>
+
+  <div class="content" id="content"></div>
+
+  <div class="save-bar" id="save-bar" style="display:none;">
+    <button class="save-btn" id="save-btn" onclick="saveToSheet()">Save to Sheet</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="settings-overlay" id="settings-overlay" style="display:none;" onclick="closeSettingsIfBg(event)">
+  <div class="settings-panel">
+    <p class="settings-title">⚙️ Settings</p>
+    <div class="field">
+      <label>Apps Script Web App URL</label>
+      <input id="cfg-url" type="url" placeholder="https://script.google.com/macros/s/..." />
+    </div>
+    <div class="field">
+      <label>Google OAuth Client ID</label>
+      <input id="cfg-clientid" placeholder="xxxx.apps.googleusercontent.com" />
+    </div>
+    <button class="settings-save" onclick="saveSettings()">Save Settings</button>
+    <div style="margin-top:16px;">
+      <div class="g-signin-wrapper" id="g-btn-container"></div>
+      <p style="font-size:12px; color: var(--muted); text-align:center; margin-top:8px;" id="auth-status-label">Not signed in</p>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+//  CONFIGURATION — edit here when you add new accounts or pots
+// ═══════════════════════════════════════════════════════════════
+//
+//  HOW TO ADD A NEW ACCOUNT:
+//  1. Add the column to your Google Sheet
+//  2. Add the column number to COLUMN_MAP in apps-script.gs
+//  3. Add a line below in ACCOUNTS (if it's a live account/credit)
+//     or SAVINGS (if it's a pot or savings account)
+//
+//  ACCOUNTS fields:
+//    key    — must match the key in apps-script.gs COLUMN_MAP
+//    name   — display name in the app
+//    owner  — 'luan', 'hoa', or 'joint' (used for subtotals)
+//    type   — 'current', 'savings', or 'credit'
+//    icon   — any emoji
+//    color  — hex colour for the icon background
+//
+//  SAVINGS fields:
+//    key, name, icon, color  (same as above, no owner/type needed)
+//
+// ── ACCOUNTS ────────────────────────────────────────────────────
+const ACCOUNTS = [
+  // Joint
+  { key: 'C',    name: 'Cash',             owner: 'joint', type: 'current', icon: '💵', color: '#6B7280' },
+  { key: 'MJ',   name: 'Monzo Joint',      owner: 'joint', type: 'current', icon: '🏦', color: '#378ADD' },
+  // Luan
+  { key: 'SM',   name: 'Santander Main',   owner: 'luan',  type: 'current', icon: '🏦', color: '#378ADD' },
+  { key: 'BM',   name: 'Barclays Main',    owner: 'luan',  type: 'current', icon: '🏦', color: '#378ADD' },
+  { key: 'ML',   name: 'Monzo Luan',       owner: 'luan',  type: 'current', icon: '🏦', color: '#378ADD' },
+  // Hoa
+  { key: 'SS',   name: 'Santander Saving', owner: 'hoa',   type: 'savings', icon: '💰', color: '#1D9E75' },
+  { key: 'BS',   name: 'Barclays Saving',  owner: 'hoa',   type: 'savings', icon: '💰', color: '#1D9E75' },
+  { key: 'MH',   name: 'Monzo Hoa',        owner: 'hoa',   type: 'current', icon: '🏦', color: '#378ADD' },
+  { key: 'RH',   name: 'Revolut Hoa',      owner: 'hoa',   type: 'current', icon: '🏦', color: '#378ADD' },
+  // Credit
+  { key: 'AMEX', name: 'Amex (unpaid)',    owner: 'joint', type: 'credit',  icon: '💳', color: '#D85A30' },
+  //
+  // ── ADD NEW ACCOUNTS ABOVE THIS LINE ──────────────────────────
+  // Example:
+  // { key: 'NS', name: 'NS&I', owner: 'joint', type: 'savings', icon: '💰', color: '#1D9E75' },
+];
+
+// ── SAVINGS & POTS ───────────────────────────────────────────────
+const SAVINGS = [
+  { key: 'MSav',       name: 'Monzo Savings',    icon: '💰', color: '#1D9E75' },
+  { key: 'MEmerg',     name: 'Monzo Emergency',  icon: '🛡️', color: '#378ADD' },
+  { key: 'Emergency',  name: 'Emergency Fund',   icon: '🛡️', color: '#378ADD' },
+  { key: 'Emergency2', name: 'Emergency 2',      icon: '🛡️', color: '#378ADD' },
+  { key: 'TISA',       name: 'Cash ISA',         icon: '📈', color: '#7F77DD' },
+  { key: 'TISA_Invi',  name: 'Cash ISA (Invi)',  icon: '📈', color: '#7F77DD' },
+  { key: 'CashISA',    name: 'Cash ISA 2',       icon: '📈', color: '#7F77DD' },
+  { key: 'CashISA_Invi', name: 'Cash ISA 2 (Invi)', icon: '📈', color: '#7F77DD' },
+  { key: 'MInv',       name: 'Monzo Investment', icon: '📊', color: '#7F77DD' },
+  { key: 'MWants',     name: 'Wants Pot',        icon: '🎯', color: '#D85A30' },
+  { key: 'MTravel',    name: 'Travel Pot',       icon: '✈️', color: '#0F6E56' },
+  { key: 'Returns',    name: 'Returns Due',      icon: '↩️', color: '#6B7280' },
+  //
+  // ── ADD NEW POTS/SAVINGS ABOVE THIS LINE ──────────────────────
+  // Example:
+  // { key: 'HolidayPot', name: 'Holiday Pot', icon: '🌍', color: '#0F6E56' },
+];
+
+// ── PER-PERSON SUBTOTALS ─────────────────────────────────────────
+// Add any new account keys to the relevant owner array below
+// so they're included in the Luan / Hoa totals on the dashboard
+const OWNER_KEYS = {
+  luan:  ['SM', 'BM', 'ML', 'MSav', 'MEmerg', 'MInv', 'MWants', 'MTravel'],
+  hoa:   ['SS', 'BS', 'MH', 'RH'],
+  joint: ['C', 'MJ'],
+};
+
+// ═══════════════════════════════════════════════════════════════
+//  No need to edit below this line
+// ═══════════════════════════════════════════════════════════════
+
+let cfg = {
+  scriptUrl: localStorage.getItem('bt_scriptUrl') || '',
+  clientId: localStorage.getItem('bt_clientId') || '',
+};
+let accessToken = sessionStorage.getItem('bt_token') || '';
+let currentTab = 'dashboard';
+let dirty = false;
+
+let balances = {};
+
+// Init
+[...ACCOUNTS, ...SAVINGS].forEach(a => {
+  balances[a.key] = parseFloat(localStorage.getItem('bt_bal_' + a.key) || '0');
+});
+
+// ── Formatting ─────────────────────────────────────────────────
+function fmt(n) {
+  const abs = Math.abs(n);
+  return (n < 0 ? '-' : '') + '£' + abs.toLocaleString('en-GB', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
+
+// ── Calculations ───────────────────────────────────────────────
+function calc() {
+  const acctTotal = ACCOUNTS.filter(a => a.type !== 'credit').reduce((s,a) => s + (balances[a.key]||0), 0);
+  const debt = ACCOUNTS.filter(a => a.type === 'credit').reduce((s,a) => s + (balances[a.key]||0), 0);
+  const savingsTotal = SAVINGS.reduce((s,a) => s + (balances[a.key]||0), 0);
+  const netWorth = acctTotal + debt + savingsTotal;
+  const luan = OWNER_KEYS.luan.reduce((s,k) => s + (balances[k]||0), 0);
+  const hoa = OWNER_KEYS.hoa.reduce((s,k) => s + (balances[k]||0), 0);
+  const joint = OWNER_KEYS.joint.reduce((s,k) => s + (balances[k]||0), 0);
+  const byType = {
+    current: ACCOUNTS.filter(a=>a.type==='current').reduce((s,a)=>s+(balances[a.key]||0),0),
+    savings: ACCOUNTS.filter(a=>a.type==='savings').reduce((s,a)=>s+(balances[a.key]||0),0) + savingsTotal,
+    credit: debt,
+  };
+  return { acctTotal, debt, savingsTotal, netWorth, luan, hoa, joint, byType };
+}
+
+// ── Render ─────────────────────────────────────────────────────
+function render() {
+  if (currentTab === 'dashboard') renderDashboard();
+  else if (currentTab === 'accounts') renderAccounts();
+  else if (currentTab === 'savings') renderSavings();
+
+  document.getElementById('save-bar').style.display = (currentTab !== 'dashboard') ? '' : 'none';
+}
+
+function renderDashboard() {
+  const m = calc();
+  const nwColor = m.netWorth >= 0 ? 'var(--green)' : 'var(--red)';
+  const lastSync = localStorage.getItem('bt_lastSync') || 'Never';
+  const isConnected = cfg.scriptUrl && accessToken;
+
+  let html = '';
+
+  if (!cfg.scriptUrl) {
+    html += `<div class="auth-banner"><p>⚙️ Tap the settings icon to connect your Google Sheet.</p></div>`;
+  } else if (!accessToken) {
+    html += `<div class="auth-banner"><p>🔒 Sign in with Google to sync your sheet.</p><button onclick="openSettings()">Sign in</button></div>`;
+  }
+
+  html += `
+    <div class="sync-bar">
+      <button class="sync-btn" onclick="syncFromSheet()">↓ Pull from Sheet</button>
+      <button class="sync-btn primary" onclick="saveToSheet()" id="push-btn">↑ Save to Sheet</button>
+    </div>
+    <div class="nw-card">
+      <div class="nw-label">Net Worth</div>
+      <div class="nw-value" style="color:${nwColor}">${fmt(m.netWorth)}</div>
+      <div class="nw-sub">Total · ${fmt(m.acctTotal + m.debt)} in accounts · ${fmt(m.savingsTotal)} saved</div>
+    </div>
+    <div class="metric-grid">
+      <div class="metric"><div class="metric-label">Luan</div><div class="metric-value c-blue">${fmt(m.luan)}</div></div>
+      <div class="metric"><div class="metric-label">Hoa</div><div class="metric-value c-purple">${fmt(m.hoa)}</div></div>
+      <div class="metric"><div class="metric-label">Joint</div><div class="metric-value">${fmt(m.joint)}</div></div>
+      <div class="metric"><div class="metric-label">Debt</div><div class="metric-value c-red">${fmt(m.debt)}</div></div>
+    </div>
+    <div class="breakdown-card">
+      <div class="breakdown-title">By type</div>
+      <div class="breakdown-row"><span class="breakdown-name"><span class="dot" style="background:#378ADD"></span>Current accounts</span><span class="breakdown-amount">${fmt(m.byType.current)}</span></div>
+      <div class="breakdown-row"><span class="breakdown-name"><span class="dot" style="background:#1D9E75"></span>Savings & ISAs</span><span class="breakdown-amount">${fmt(m.byType.savings)}</span></div>
+      <div class="breakdown-row"><span class="breakdown-name"><span class="dot" style="background:#D85A30"></span>Credit / Unpaid</span><span class="breakdown-amount" style="color:var(--red)">${fmt(m.byType.credit)}</span></div>
+    </div>
+    <p class="updated-text">Last synced: ${lastSync}</p>
+  `;
+
+  document.getElementById('content').innerHTML = html;
+}
+
+function renderAccounts() {
+  const groups = [
+    { label: "Joint", keys: ['C','MJ'] },
+    { label: "Luan's accounts", keys: ['SM','BM','ML'] },
+    { label: "Hoa's accounts", keys: ['SS','BS','MH','RH'] },
+    { label: "Unpaid / Credit", keys: ['AMEX'] },
+  ];
+
+  let html = '';
+  groups.forEach(g => {
+    const items = g.keys.map(k => ACCOUNTS.find(a => a.key === k)).filter(Boolean);
+    html += `<div class="section-header">${g.label}</div>`;
+    items.forEach(a => {
+      const val = balances[a.key] || 0;
+      const neg = val < 0 ? ' negative' : '';
+      html += `
+        <div class="account-card">
+          <div class="account-row">
+            <div class="acct-icon" style="background:${a.color}22">${a.icon}</div>
+            <div class="acct-info">
+              <div class="acct-name">${a.name}</div>
+              <div class="acct-type">${a.type.charAt(0).toUpperCase()+a.type.slice(1)}</div>
+            </div>
+            <input class="acct-input${neg}" type="number" value="${val}" data-key="${a.key}"
+              oninput="updateBalance('${a.key}', this.value, this)"
+              onfocus="this.select()" />
+          </div>
+        </div>`;
+    });
+  });
+
+  document.getElementById('content').innerHTML = html;
+}
+
+function renderSavings() {
+  let html = `<div class="section-header">Savings & Pots</div>`;
+  SAVINGS.forEach(a => {
+    const val = balances[a.key] || 0;
+    html += `
+      <div class="account-card">
+        <div class="account-row">
+          <div class="acct-icon" style="background:${a.color}22; font-size:16px">${a.icon}</div>
+          <div class="acct-info">
+            <div class="acct-name">${a.name}</div>
+          </div>
+          <input class="acct-input" type="number" value="${val}" data-key="${a.key}"
+            oninput="updateBalance('${a.key}', this.value, this)"
+            onfocus="this.select()" />
+        </div>
+      </div>`;
+  });
+
+  const total = SAVINGS.reduce((s,a) => s + (balances[a.key]||0), 0);
+  html += `
+    <div style="background:var(--card); border-radius:var(--radius); padding:14px 16px; margin-top:4px; border:0.5px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
+      <span style="font-weight:600; font-size:14px;">Total savings</span>
+      <span style="font-weight:600; font-size:18px; color:var(--green)">${fmt(total)}</span>
+    </div>
+    <div style="height:16px;"></div>`;
+
+  document.getElementById('content').innerHTML = html;
+}
+
+// ── Balance update ─────────────────────────────────────────────
+function updateBalance(key, val, el) {
+  const n = parseFloat(val);
+  if (!isNaN(n)) {
+    balances[key] = n;
+    localStorage.setItem('bt_bal_' + key, n);
+    el.classList.toggle('negative', n < 0);
+    dirty = true;
+  }
+}
+
+// ── Tab switching ──────────────────────────────────────────────
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  render();
+}
+
+// ── Google OAuth ───────────────────────────────────────────────
+function initGoogleSignIn() {
+  if (!cfg.clientId || !window.google) return;
+  try {
+    google.accounts.id.initialize({
+      client_id: cfg.clientId,
+      callback: handleCredentialResponse,
+      auto_select: true,
+    });
+    google.accounts.oauth2 && google.accounts.oauth2.initTokenClient({
+      client_id: cfg.clientId,
+      scope: 'https://www.googleapis.com/auth/script.external_request',
+      callback: (resp) => {
+        if (resp.access_token) {
+          accessToken = resp.access_token;
+          sessionStorage.setItem('bt_token', accessToken);
+          updateStatus('connected', 'Connected');
+          toast('Signed in ✓');
+          closeSettings();
+          render();
+        }
+      }
+    });
+    renderSignInButton();
+  } catch(e) {}
+}
+
+let tokenClient;
+function renderSignInButton() {
+  if (!cfg.clientId || !window.google) return;
+  try {
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: cfg.clientId,
+      scope: 'https://www.googleapis.com/auth/script.external_request openid email',
+      callback: (resp) => {
+        if (resp.access_token) {
+          accessToken = resp.access_token;
+          sessionStorage.setItem('bt_token', accessToken);
+          updateStatus('connected', 'Connected');
+          document.getElementById('auth-status-label').textContent = 'Signed in ✓';
+          toast('Signed in ✓');
+          render();
+        }
+      }
+    });
+
+    const container = document.getElementById('g-btn-container');
+    if (!container) return;
+    container.innerHTML = '';
+    const btn = document.createElement('button');
+    btn.style.cssText = 'padding:10px 20px; border-radius:10px; border:0.5px solid #dadce0; background:white; font-size:14px; cursor:pointer; display:flex; align-items:center; gap:8px; font-family:-apple-system,sans-serif;';
+    btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 002.38-5.88c0-.57-.05-.66-.15-1.18z"/><path fill="#34A853" d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2a4.8 4.8 0 01-7.18-2.54H1.83v2.07A8 8 0 008.98 17z"/><path fill="#FBBC05" d="M4.5 10.52a4.8 4.8 0 010-3.04V5.41H1.83a8 8 0 000 7.18l2.67-2.07z"/><path fill="#EA4335" d="M8.98 4.18c1.17 0 2.23.4 3.06 1.2l2.3-2.3A8 8 0 001.83 5.4L4.5 7.49a4.77 4.77 0 014.48-3.3z"/></svg>Sign in with Google';
+    btn.onclick = () => tokenClient && tokenClient.requestAccessToken();
+    container.appendChild(btn);
+  } catch(e) {}
+}
+
+// ── Sheet sync ─────────────────────────────────────────────────
+async function syncFromSheet() {
+  if (!cfg.scriptUrl) { toast('⚙️ Set your Apps Script URL in Settings'); return; }
+  if (!accessToken) { toast('🔒 Sign in with Google first'); openSettings(); return; }
+
+  const btn = document.querySelector('.sync-btn');
+  const orig = btn ? btn.textContent : '';
+  if (btn) btn.innerHTML = '<span class="spinner"></span>';
+
+  try {
+    const url = cfg.scriptUrl + '?action=read';
+    const res = await fetch(url, { headers: { Authorization: 'Bearer ' + accessToken } });
+    const data = await res.json();
+
+    if (data.success && data.balances) {
+      Object.entries(data.balances).forEach(([k, v]) => {
+        balances[k] = parseFloat(v) || 0;
+        localStorage.setItem('bt_bal_' + k, balances[k]);
+      });
+      const now = new Date().toLocaleString('en-GB', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
+      localStorage.setItem('bt_lastSync', now);
+      updateStatus('connected', 'Synced');
+      render();
+      toast('✓ Synced from sheet');
+    } else {
+      toast('Error: ' + (data.error || 'Unknown error'));
+      if (btn) btn.textContent = orig;
+    }
+  } catch (e) {
+    toast('Connection failed — check settings');
+    updateStatus('disconnected', 'Error');
+    if (btn) btn.textContent = orig;
+  }
+}
+
+async function saveToSheet() {
+  if (!cfg.scriptUrl) { toast('⚙️ Set your Apps Script URL in Settings'); return; }
+  if (!accessToken) { toast('🔒 Sign in with Google first'); openSettings(); return; }
+
+  const btn = document.getElementById('save-btn') || document.getElementById('push-btn');
+  const orig = btn ? btn.innerHTML : '';
+  if (btn) btn.innerHTML = '<span class="spinner"></span>';
+  if (btn) btn.disabled = true;
+
+  try {
+    const res = await fetch(cfg.scriptUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + accessToken },
+      body: JSON.stringify({ action: 'write', balances })
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      const now = new Date().toLocaleString('en-GB', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
+      localStorage.setItem('bt_lastSync', now);
+      dirty = false;
+      toast('✓ Saved to Google Sheet');
+      updateStatus('connected', 'Saved');
+    } else {
+      toast('Error: ' + (data.error || 'Unknown'));
+    }
+  } catch(e) {
+    toast('Save failed — check connection');
+  }
+
+  if (btn) { btn.innerHTML = orig; btn.disabled = false; }
+  if (currentTab === 'dashboard') render();
+}
+
+// ── Settings ───────────────────────────────────────────────────
+function openSettings() {
+  document.getElementById('cfg-url').value = cfg.scriptUrl;
+  document.getElementById('cfg-clientid').value = cfg.clientId;
+  document.getElementById('settings-overlay').style.display = 'flex';
+  document.getElementById('auth-status-label').textContent = accessToken ? 'Signed in ✓' : 'Not signed in';
+  setTimeout(renderSignInButton, 100);
+}
+function closeSettings() {
+  document.getElementById('settings-overlay').style.display = 'none';
+}
+function closeSettingsIfBg(e) {
+  if (e.target.id === 'settings-overlay') closeSettings();
+}
+function saveSettings() {
+  cfg.scriptUrl = document.getElementById('cfg-url').value.trim();
+  cfg.clientId = document.getElementById('cfg-clientid').value.trim();
+  localStorage.setItem('bt_scriptUrl', cfg.scriptUrl);
+  localStorage.setItem('bt_clientId', cfg.clientId);
+  toast('Settings saved');
+  closeSettings();
+  if (cfg.clientId) setTimeout(initGoogleSignIn, 300);
+  render();
+}
+
+// ── Status ─────────────────────────────────────────────────────
+function updateStatus(state, label) {
+  const dot = document.getElementById('status-dot');
+  const text = document.getElementById('status-text');
+  if (dot) { dot.className = 'status-dot ' + state; }
+  if (text) text.textContent = label;
+}
+
+// ── Toast ──────────────────────────────────────────────────────
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+// ── Init ───────────────────────────────────────────────────────
+window.addEventListener('load', () => {
+  if (cfg.scriptUrl && accessToken) updateStatus('connected', 'Connected');
+  else if (cfg.scriptUrl) updateStatus('pending', 'Not signed in');
+  render();
+  setTimeout(initGoogleSignIn, 800);
+});
+</script>
+
+</body>
+</html>
