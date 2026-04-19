@@ -217,15 +217,23 @@ const ACCOUNTS = [
 ];
 
 // ── SAVINGS & POTS ───────────────────────────────────────────────
+// All pots shown here appear in the Savings tab for viewing/editing.
+// countInTotal: true  → included in net worth (standalone money)
+// countInTotal: false → display only, already counted via account columns
 const SAVINGS = [
-  // Only entries that are NOT already counted in an account column above.
-  // MSav, MEmerg, TISA, TISA_Invi, MInv, MWants, MTravel are all referenced
-  // from account columns — do not add them here or they will be double counted.
-  { key: 'Emergency',  name: 'Emergency Fund',  icon: '🛡️', color: '#378ADD' },
-  { key: 'Returns',    name: 'Returns Due',     icon: '↩️', color: '#6B7280' },
+  { key: 'MSav',       name: 'Monzo Savings',    icon: '💰', color: '#1D9E75', countInTotal: false },
+  { key: 'MEmerg',     name: 'Monzo Emergency',  icon: '🛡️', color: '#378ADD', countInTotal: false },
+  { key: 'TISA',       name: 'Cash ISA',         icon: '📈', color: '#7F77DD', countInTotal: false },
+  { key: 'TISA_Invi',  name: 'Cash ISA (Invi)',  icon: '📈', color: '#7F77DD', countInTotal: false },
+  { key: 'MInv',       name: 'Investment',       icon: '📊', color: '#7F77DD', countInTotal: false },
+  { key: 'MWants',     name: 'Wants Pot',        icon: '🎯', color: '#D85A30', countInTotal: false },
+  { key: 'MTravel',    name: 'Travel Pot',       icon: '✈️', color: '#0F6E56', countInTotal: false },
+  { key: 'Emergency',  name: 'Emergency Fund',   icon: '🛡️', color: '#185FA5', countInTotal: true  },
+  { key: 'Returns',    name: 'Returns Due',      icon: '↩️', color: '#6B7280', countInTotal: true  },
   //
-  // ── ADD NEW STANDALONE SAVINGS ABOVE THIS LINE ────────────────
-  // Only add here if the balance is NOT already in an account column.
+  // ── ADD NEW POTS ABOVE THIS LINE ──────────────────────────────
+  // countInTotal: true  = standalone money not in any account column
+  // countInTotal: false = already tracked via an account column
 ];
 
 // ── PER-PERSON SUBTOTALS ─────────────────────────────────────────
@@ -266,14 +274,14 @@ function fmt(n) {
 function calc() {
   const acctTotal = ACCOUNTS.filter(a => a.type !== 'credit').reduce((s,a) => s + (balances[a.key]||0), 0);
   const debt = ACCOUNTS.filter(a => a.type === 'credit').reduce((s,a) => s + (balances[a.key]||0), 0);
-  const savingsTotal = SAVINGS.reduce((s,a) => s + (balances[a.key]||0), 0);
+  const savingsTotal = SAVINGS.filter(a => a.countInTotal).reduce((s,a) => s + (balances[a.key]||0), 0);
   const netWorth = acctTotal + debt + savingsTotal;
   const luan = OWNER_KEYS.luan.reduce((s,k) => s + (balances[k]||0), 0);
   const hoa = OWNER_KEYS.hoa.reduce((s,k) => s + (balances[k]||0), 0);
   const joint = OWNER_KEYS.joint.reduce((s,k) => s + (balances[k]||0), 0);
   const byType = {
     current: ACCOUNTS.filter(a=>a.type==='current').reduce((s,a)=>s+(balances[a.key]||0),0),
-    savings: ACCOUNTS.filter(a=>a.type==='savings').reduce((s,a)=>s+(balances[a.key]||0),0) + savingsTotal,
+    savings: ACCOUNTS.filter(a=>a.type==='savings').reduce((s,a)=>s+(balances[a.key]||0),0) + savingsTotal + SAVINGS.filter(a=>!a.countInTotal).reduce((s,a)=>s+(balances[a.key]||0),0),
     credit: debt,
   };
   return { acctTotal, debt, savingsTotal, netWorth, luan, hoa, joint, byType };
@@ -362,28 +370,41 @@ function renderAccounts() {
 }
 
 function renderSavings() {
-  let html = `<div class="section-header">Savings & Pots</div>`;
-  SAVINGS.forEach(a => {
+  const pots      = SAVINGS.filter(a => !a.countInTotal);
+  const standalone = SAVINGS.filter(a => a.countInTotal);
+
+  function accountRow(a) {
     const val = balances[a.key] || 0;
-    html += `
+    return `
       <div class="account-card">
         <div class="account-row">
           <div class="acct-icon" style="background:${a.color}22; font-size:16px">${a.icon}</div>
-          <div class="acct-info">
-            <div class="acct-name">${a.name}</div>
-          </div>
+          <div class="acct-info"><div class="acct-name">${a.name}</div></div>
           <input class="acct-input" type="number" value="${val}" data-key="${a.key}"
             oninput="updateBalance('${a.key}', this.value, this)"
             onfocus="this.select()" />
         </div>
       </div>`;
-  });
+  }
 
-  const total = SAVINGS.reduce((s,a) => s + (balances[a.key]||0), 0);
+  let html = `<div class="section-header">Monzo pots & ISAs</div>`;
+  pots.forEach(a => { html += accountRow(a); });
+
+  html += `<div class="section-header">Standalone savings</div>`;
+  standalone.forEach(a => { html += accountRow(a); });
+
+  const total = SAVINGS.filter(a => a.countInTotal).reduce((s,a) => s + (balances[a.key]||0), 0);
+  const potsTotal = SAVINGS.filter(a => !a.countInTotal).reduce((s,a) => s + (balances[a.key]||0), 0);
   html += `
-    <div style="background:var(--card); border-radius:var(--radius); padding:14px 16px; margin-top:4px; border:0.5px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
-      <span style="font-weight:600; font-size:14px;">Total savings</span>
-      <span style="font-weight:600; font-size:18px; color:var(--green)">${fmt(total)}</span>
+    <div style="background:var(--card); border-radius:var(--radius); margin-top:4px; border:0.5px solid var(--border); overflow:hidden;">
+      <div style="display:flex; justify-content:space-between; padding:12px 16px; border-bottom:0.5px solid var(--color-border-tertiary, rgba(0,0,0,0.08));">
+        <span style="font-size:13px; color:#6B7280;">Pots & ISAs (tracked via accounts)</span>
+        <span style="font-size:13px; font-weight:500;">${fmt(potsTotal)}</span>
+      </div>
+      <div style="display:flex; justify-content:space-between; padding:12px 16px;">
+        <span style="font-size:14px; font-weight:600;">Standalone total</span>
+        <span style="font-size:18px; font-weight:600; color:#0F6E56;">${fmt(total)}</span>
+      </div>
     </div>
     <div style="height:16px;"></div>`;
 
