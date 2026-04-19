@@ -229,7 +229,8 @@ const SAVINGS = [
 // Add any new account keys to the relevant owner array below
 // so they're included in the Luan / Hoa totals on the dashboard
 const OWNER_KEYS = {
-  luan:  ['SM', 'BM', 'ML', 'MSav', 'MEmerg', 'MInv', 'MWants', 'MTravel'],
+  // Current/live accounts only — savings are shown as a combined joint total
+  luan:  ['SM', 'BM', 'ML'],
   hoa:   ['SS', 'BS', 'MH', 'RH'],
   joint: ['C', 'MJ'],
 };
@@ -305,9 +306,9 @@ function renderDashboard() {
       <div class="nw-sub">Total · ${fmt(m.acctTotal + m.debt)} in accounts · ${fmt(m.savingsTotal)} saved</div>
     </div>
     <div class="metric-grid">
-      <div class="metric"><div class="metric-label">Luan</div><div class="metric-value c-blue">${fmt(m.luan)}</div></div>
-      <div class="metric"><div class="metric-label">Hoa</div><div class="metric-value c-purple">${fmt(m.hoa)}</div></div>
-      <div class="metric"><div class="metric-label">Joint</div><div class="metric-value">${fmt(m.joint)}</div></div>
+      <div class="metric"><div class="metric-label">Luan accounts</div><div class="metric-value c-blue">${fmt(m.luan)}</div></div>
+      <div class="metric"><div class="metric-label">Hoa accounts</div><div class="metric-value c-purple">${fmt(m.hoa)}</div></div>
+      <div class="metric"><div class="metric-label">Savings & pots</div><div class="metric-value c-green">${fmt(m.savingsTotal)}</div></div>
       <div class="metric"><div class="metric-label">Debt</div><div class="metric-value c-red">${fmt(m.debt)}</div></div>
     </div>
     <div class="breakdown-card">
