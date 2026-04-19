@@ -8,7 +8,6 @@
 <meta name="apple-mobile-web-app-title" content="Budget">
 <meta name="theme-color" content="#ffffff">
 <title>Budget Tracker</title>
-<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   :root {
@@ -155,14 +154,11 @@
       <input id="cfg-url" type="url" placeholder="https://script.google.com/macros/s/..." />
     </div>
     <div class="field">
-      <label>Google OAuth Client ID</label>
-      <input id="cfg-clientid" placeholder="xxxx.apps.googleusercontent.com" />
+      <label>Secret Token</label>
+      <input id="cfg-token" type="password" placeholder="Your secret token from apps-script.gs" />
     </div>
     <button class="settings-save" onclick="saveSettings()">Save Settings</button>
-    <div style="margin-top:16px;">
-      <div class="g-signin-wrapper" id="g-btn-container"></div>
-      <p style="font-size:12px; color: var(--muted); text-align:center; margin-top:8px;" id="auth-status-label">Not signed in</p>
-    </div>
+    <p style="font-size:12px; color: var(--muted); text-align:center; margin-top:12px;">Set the same token in <code>SECRET_TOKEN</code> in your Apps Script</p>
   </div>
 </div>
 
@@ -245,9 +241,8 @@ const OWNER_KEYS = {
 
 let cfg = {
   scriptUrl: localStorage.getItem('bt_scriptUrl') || '',
-  clientId: localStorage.getItem('bt_clientId') || '',
+  secretToken: localStorage.getItem('bt_secretToken') || '',
 };
-let accessToken = sessionStorage.getItem('bt_token') || '';
 let currentTab = 'dashboard';
 let dirty = false;
 
@@ -298,10 +293,8 @@ function renderDashboard() {
 
   let html = '';
 
-  if (!cfg.scriptUrl) {
+  if (!cfg.scriptUrl || !cfg.secretToken) {
     html += `<div class="auth-banner"><p>⚙️ Tap the settings icon to connect your Google Sheet.</p></div>`;
-  } else if (!accessToken) {
-    html += `<div class="auth-banner"><p>🔒 Sign in with Google to sync your sheet.</p><button onclick="openSettings()">Sign in</button></div>`;
   }
 
   html += `
@@ -414,75 +407,18 @@ function switchTab(tab) {
   render();
 }
 
-// ── Google OAuth ───────────────────────────────────────────────
-function initGoogleSignIn() {
-  if (!cfg.clientId || !window.google) return;
-  try {
-    google.accounts.id.initialize({
-      client_id: cfg.clientId,
-      callback: handleCredentialResponse,
-      auto_select: true,
-    });
-    google.accounts.oauth2 && google.accounts.oauth2.initTokenClient({
-      client_id: cfg.clientId,
-      scope: 'https://www.googleapis.com/auth/script.external_request',
-      callback: (resp) => {
-        if (resp.access_token) {
-          accessToken = resp.access_token;
-          sessionStorage.setItem('bt_token', accessToken);
-          updateStatus('connected', 'Connected');
-          toast('Signed in ✓');
-          closeSettings();
-          render();
-        }
-      }
-    });
-    renderSignInButton();
-  } catch(e) {}
-}
-
-let tokenClient;
-function renderSignInButton() {
-  if (!cfg.clientId || !window.google) return;
-  try {
-    tokenClient = google.accounts.oauth2.initTokenClient({
-      client_id: cfg.clientId,
-      scope: 'https://www.googleapis.com/auth/script.external_request openid email',
-      callback: (resp) => {
-        if (resp.access_token) {
-          accessToken = resp.access_token;
-          sessionStorage.setItem('bt_token', accessToken);
-          updateStatus('connected', 'Connected');
-          document.getElementById('auth-status-label').textContent = 'Signed in ✓';
-          toast('Signed in ✓');
-          render();
-        }
-      }
-    });
-
-    const container = document.getElementById('g-btn-container');
-    if (!container) return;
-    container.innerHTML = '';
-    const btn = document.createElement('button');
-    btn.style.cssText = 'padding:10px 20px; border-radius:10px; border:0.5px solid #dadce0; background:white; font-size:14px; cursor:pointer; display:flex; align-items:center; gap:8px; font-family:-apple-system,sans-serif;';
-    btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 002.38-5.88c0-.57-.05-.66-.15-1.18z"/><path fill="#34A853" d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2a4.8 4.8 0 01-7.18-2.54H1.83v2.07A8 8 0 008.98 17z"/><path fill="#FBBC05" d="M4.5 10.52a4.8 4.8 0 010-3.04V5.41H1.83a8 8 0 000 7.18l2.67-2.07z"/><path fill="#EA4335" d="M8.98 4.18c1.17 0 2.23.4 3.06 1.2l2.3-2.3A8 8 0 001.83 5.4L4.5 7.49a4.77 4.77 0 014.48-3.3z"/></svg>Sign in with Google';
-    btn.onclick = () => tokenClient && tokenClient.requestAccessToken();
-    container.appendChild(btn);
-  } catch(e) {}
-}
-
 // ── Sheet sync ─────────────────────────────────────────────────
 async function syncFromSheet() {
-  if (!cfg.scriptUrl) { toast('⚙️ Set your Apps Script URL in Settings'); return; }
-  if (!accessToken) { toast('🔒 Sign in with Google first'); openSettings(); return; }
+  if (!cfg.scriptUrl) { toast('⚙️ Set your Apps Script URL in Settings'); openSettings(); return; }
+  if (!cfg.secretToken) { toast('⚙️ Set your Secret Token in Settings'); openSettings(); return; }
 
   const btn = document.querySelector('.sync-btn');
   const orig = btn ? btn.textContent : '';
   if (btn) btn.innerHTML = '<span class="spinner"></span>';
 
   try {
-    const url = cfg.scriptUrl + '?action=read';
-    const res = await fetch(url, { headers: { Authorization: 'Bearer ' + accessToken } });
+    const url = cfg.scriptUrl + '?action=read&token=' + encodeURIComponent(cfg.secretToken);
+    const res = await fetch(url);
     const data = await res.json();
 
     if (data.success && data.balances) {
@@ -495,6 +431,10 @@ async function syncFromSheet() {
       updateStatus('connected', 'Synced');
       render();
       toast('✓ Synced from sheet');
+    } else if (data.error === 'Unauthorized') {
+      toast('Wrong token — check Settings');
+      updateStatus('disconnected', 'Auth error');
+      if (btn) btn.textContent = orig;
     } else {
       toast('Error: ' + (data.error || 'Unknown error'));
       if (btn) btn.textContent = orig;
@@ -507,8 +447,8 @@ async function syncFromSheet() {
 }
 
 async function saveToSheet() {
-  if (!cfg.scriptUrl) { toast('⚙️ Set your Apps Script URL in Settings'); return; }
-  if (!accessToken) { toast('🔒 Sign in with Google first'); openSettings(); return; }
+  if (!cfg.scriptUrl) { toast('⚙️ Set your Apps Script URL in Settings'); openSettings(); return; }
+  if (!cfg.secretToken) { toast('⚙️ Set your Secret Token in Settings'); openSettings(); return; }
 
   const btn = document.getElementById('save-btn') || document.getElementById('push-btn');
   const orig = btn ? btn.innerHTML : '';
@@ -518,8 +458,8 @@ async function saveToSheet() {
   try {
     const res = await fetch(cfg.scriptUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + accessToken },
-      body: JSON.stringify({ action: 'write', balances })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'write', token: cfg.secretToken, balances })
     });
     const data = await res.json();
 
@@ -529,6 +469,9 @@ async function saveToSheet() {
       dirty = false;
       toast('✓ Saved to Google Sheet');
       updateStatus('connected', 'Saved');
+    } else if (data.error === 'Unauthorized') {
+      toast('Wrong token — check Settings');
+      updateStatus('disconnected', 'Auth error');
     } else {
       toast('Error: ' + (data.error || 'Unknown'));
     }
@@ -543,10 +486,8 @@ async function saveToSheet() {
 // ── Settings ───────────────────────────────────────────────────
 function openSettings() {
   document.getElementById('cfg-url').value = cfg.scriptUrl;
-  document.getElementById('cfg-clientid').value = cfg.clientId;
+  document.getElementById('cfg-token').value = cfg.secretToken;
   document.getElementById('settings-overlay').style.display = 'flex';
-  document.getElementById('auth-status-label').textContent = accessToken ? 'Signed in ✓' : 'Not signed in';
-  setTimeout(renderSignInButton, 100);
 }
 function closeSettings() {
   document.getElementById('settings-overlay').style.display = 'none';
@@ -556,12 +497,13 @@ function closeSettingsIfBg(e) {
 }
 function saveSettings() {
   cfg.scriptUrl = document.getElementById('cfg-url').value.trim();
-  cfg.clientId = document.getElementById('cfg-clientid').value.trim();
+  cfg.secretToken = document.getElementById('cfg-token').value.trim();
   localStorage.setItem('bt_scriptUrl', cfg.scriptUrl);
-  localStorage.setItem('bt_clientId', cfg.clientId);
+  localStorage.setItem('bt_secretToken', cfg.secretToken);
   toast('Settings saved');
   closeSettings();
-  if (cfg.clientId) setTimeout(initGoogleSignIn, 300);
+  updateStatus(cfg.scriptUrl && cfg.secretToken ? 'connected' : 'disconnected',
+               cfg.scriptUrl && cfg.secretToken ? 'Ready' : 'Not configured');
   render();
 }
 
@@ -583,10 +525,11 @@ function toast(msg) {
 
 // ── Init ───────────────────────────────────────────────────────
 window.addEventListener('load', () => {
-  if (cfg.scriptUrl && accessToken) updateStatus('connected', 'Connected');
-  else if (cfg.scriptUrl) updateStatus('pending', 'Not signed in');
+  updateStatus(
+    cfg.scriptUrl && cfg.secretToken ? 'connected' : 'disconnected',
+    cfg.scriptUrl && cfg.secretToken ? 'Ready' : 'Not configured'
+  );
   render();
-  setTimeout(initGoogleSignIn, 800);
 });
 </script>
 
