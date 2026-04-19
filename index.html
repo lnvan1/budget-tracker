@@ -114,7 +114,17 @@
   .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.4); border-top-color: white; border-radius: 50%; animation: spin 0.6s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
 
+
+  /* Charts */
+  .chart-card { background: var(--card); border-radius: var(--radius); border: 0.5px solid var(--border); padding: 16px; margin-bottom: 12px; }
+  .chart-title { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+  .chart-sub { font-size: 12px; color: var(--muted); margin-bottom: 14px; }
+  .range-pills { display: flex; gap: 6px; margin-bottom: 14px; }
+  .pill { padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 500; cursor: pointer; border: 0.5px solid var(--border); background: var(--card); color: var(--muted); }
+  .pill.active { background: var(--accent); color: white; border-color: var(--accent); }
+  .chart-loading { text-align: center; padding: 40px 0; font-size: 13px; color: var(--muted); }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
 <div class="app" id="app">
@@ -134,6 +144,7 @@
     <div class="tab active" id="tab-dashboard" onclick="switchTab('dashboard')">Dashboard</div>
     <div class="tab" id="tab-accounts" onclick="switchTab('accounts')">Accounts</div>
     <div class="tab" id="tab-savings" onclick="switchTab('savings')">Savings</div>
+    <div class="tab" id="tab-charts" onclick="switchTab('charts')">Charts</div>
   </div>
 
   <div class="content" id="content"></div>
@@ -207,22 +218,14 @@ const ACCOUNTS = [
 
 // ── SAVINGS & POTS ───────────────────────────────────────────────
 const SAVINGS = [
-  { key: 'MSav',       name: 'Monzo Savings',    icon: '💰', color: '#1D9E75' },
-  { key: 'MEmerg',     name: 'Monzo Emergency',  icon: '🛡️', color: '#378ADD' },
-  { key: 'Emergency',  name: 'Emergency Fund',   icon: '🛡️', color: '#378ADD' },
-  { key: 'Emergency2', name: 'Emergency 2',      icon: '🛡️', color: '#378ADD' },
-  { key: 'TISA',       name: 'Cash ISA',         icon: '📈', color: '#7F77DD' },
-  { key: 'TISA_Invi',  name: 'Cash ISA (Invi)',  icon: '📈', color: '#7F77DD' },
-  { key: 'CashISA',    name: 'Cash ISA 2',       icon: '📈', color: '#7F77DD' },
-  { key: 'CashISA_Invi', name: 'Cash ISA 2 (Invi)', icon: '📈', color: '#7F77DD' },
-  { key: 'MInv',       name: 'Monzo Investment', icon: '📊', color: '#7F77DD' },
-  { key: 'MWants',     name: 'Wants Pot',        icon: '🎯', color: '#D85A30' },
-  { key: 'MTravel',    name: 'Travel Pot',       icon: '✈️', color: '#0F6E56' },
-  { key: 'Returns',    name: 'Returns Due',      icon: '↩️', color: '#6B7280' },
+  // Only entries that are NOT already counted in an account column above.
+  // MSav, MEmerg, TISA, TISA_Invi, MInv, MWants, MTravel are all referenced
+  // from account columns — do not add them here or they will be double counted.
+  { key: 'Emergency',  name: 'Emergency Fund',  icon: '🛡️', color: '#378ADD' },
+  { key: 'Returns',    name: 'Returns Due',     icon: '↩️', color: '#6B7280' },
   //
-  // ── ADD NEW POTS/SAVINGS ABOVE THIS LINE ──────────────────────
-  // Example:
-  // { key: 'HolidayPot', name: 'Holiday Pot', icon: '🌍', color: '#0F6E56' },
+  // ── ADD NEW STANDALONE SAVINGS ABOVE THIS LINE ────────────────
+  // Only add here if the balance is NOT already in an account column.
 ];
 
 // ── PER-PERSON SUBTOTALS ─────────────────────────────────────────
@@ -281,8 +284,9 @@ function render() {
   if (currentTab === 'dashboard') renderDashboard();
   else if (currentTab === 'accounts') renderAccounts();
   else if (currentTab === 'savings') renderSavings();
+  else if (currentTab === 'charts') renderCharts();
 
-  document.getElementById('save-bar').style.display = (currentTab !== 'dashboard') ? '' : 'none';
+  document.getElementById('save-bar').style.display = (currentTab === 'accounts' || currentTab === 'savings') ? '' : 'none';
 }
 
 function renderDashboard() {
@@ -403,6 +407,213 @@ function switchTab(tab) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.getElementById('tab-' + tab).classList.add('active');
   render();
+}
+
+
+// ── Charts ─────────────────────────────────────────────────────
+let chartRange = 90;
+let lineChart = null;
+let pieChart = null;
+let historyCache = null;
+
+function renderCharts() {
+  const content = document.getElementById('content');
+  content.innerHTML = `
+    <div class="range-pills">
+      <div class="pill ${chartRange===30?'active':''}" onclick="setChartRange(30)">1M</div>
+      <div class="pill ${chartRange===90?'active':''}" onclick="setChartRange(90)">3M</div>
+      <div class="pill ${chartRange===180?'active':''}" onclick="setChartRange(180)">6M</div>
+      <div class="pill ${chartRange===365?'active':''}" onclick="setChartRange(365)">1Y</div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Account balances over time</div>
+      <div class="chart-sub">Current accounts · Savings · Credit</div>
+      <canvas id="lineCanvas" height="220"></canvas>
+      <div class="chart-loading" id="line-loading">Loading from sheet…</div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Current balance split</div>
+      <div class="chart-sub">By account type</div>
+      <div style="max-width:220px; margin:0 auto;"><canvas id="pieCanvas"></canvas></div>
+    </div>
+    <div style="height:16px;"></div>
+  `;
+
+  drawPie();
+
+  if (historyCache && historyCache.range === chartRange) {
+    drawLine(historyCache.data);
+  } else {
+    fetchHistory();
+  }
+}
+
+function setChartRange(days) {
+  chartRange = days;
+  historyCache = null;
+  if (lineChart) { lineChart.destroy(); lineChart = null; }
+  renderCharts();
+}
+
+async function fetchHistory() {
+  if (!cfg.scriptUrl || !cfg.secretToken) {
+    const el = document.getElementById('line-loading');
+    if (el) el.textContent = '⚙️ Connect your sheet in Settings to see history';
+    return;
+  }
+
+  try {
+    const url = `${cfg.scriptUrl}?action=history&days=${chartRange}&token=${encodeURIComponent(cfg.secretToken)}`;
+    const res = await fetch(url);
+    const data = await res.json();
+
+    if (data.success && data.history) {
+      historyCache = { range: chartRange, data: data.history };
+      drawLine(data.history);
+    } else {
+      const el = document.getElementById('line-loading');
+      if (el) el.textContent = 'Error: ' + (data.error || 'Could not load history');
+    }
+  } catch(e) {
+    const el = document.getElementById('line-loading');
+    if (el) el.textContent = 'Connection failed — check settings';
+  }
+}
+
+function drawLine(history) {
+  const loading = document.getElementById('line-loading');
+  const canvas  = document.getElementById('lineCanvas');
+  if (!canvas) return;
+
+  if (!history || history.length === 0) {
+    if (loading) loading.textContent = 'No data in this range yet';
+    return;
+  }
+  if (loading) loading.style.display = 'none';
+
+  const labels = history.map(r => {
+    const d = new Date(r.date);
+    return d.toLocaleDateString('en-GB', { day:'numeric', month:'short' });
+  });
+
+  const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
+  const textColor = isDark ? '#9CA3AF' : '#6B7280';
+
+  if (lineChart) lineChart.destroy();
+
+  lineChart = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Current accounts',
+          data: history.map(r => Math.round(r.accountsTotal)),
+          borderColor: '#378ADD',
+          backgroundColor: 'rgba(55,138,221,0.08)',
+          borderWidth: 2,
+          pointRadius: history.length > 30 ? 0 : 3,
+          pointHoverRadius: 4,
+          tension: 0.3,
+          fill: true,
+        },
+        {
+          label: 'Savings',
+          data: history.map(r => Math.round(r.savingsTotal)),
+          borderColor: '#1D9E75',
+          backgroundColor: 'rgba(29,158,117,0.08)',
+          borderWidth: 2,
+          pointRadius: history.length > 30 ? 0 : 3,
+          pointHoverRadius: 4,
+          tension: 0.3,
+          fill: true,
+        },
+        {
+          label: 'Credit (debt)',
+          data: history.map(r => Math.round(r.creditTotal)),
+          borderColor: '#D85A30',
+          backgroundColor: 'rgba(216,90,48,0.08)',
+          borderWidth: 2,
+          pointRadius: history.length > 30 ? 0 : 3,
+          pointHoverRadius: 4,
+          tension: 0.3,
+        },
+      ]
+    },
+    options: {
+      responsive: true,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: { boxWidth: 10, padding: 14, font: { size: 11 }, color: textColor }
+        },
+        tooltip: {
+          callbacks: {
+            label: ctx => ' £' + Math.abs(ctx.parsed.y).toLocaleString('en-GB')
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: textColor, font: { size: 10 }, maxTicksLimit: 6 },
+          grid: { color: gridColor }
+        },
+        y: {
+          ticks: {
+            color: textColor,
+            font: { size: 10 },
+            callback: v => '£' + Math.round(Math.abs(v)/1000) + 'k'
+          },
+          grid: { color: gridColor }
+        }
+      }
+    }
+  });
+}
+
+function drawPie() {
+  const canvas = document.getElementById('pieCanvas');
+  if (!canvas) return;
+
+  const m = calc();
+  const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const textColor = isDark ? '#9CA3AF' : '#6B7280';
+
+  const current  = Math.max(0, m.byType.current);
+  const savings  = Math.max(0, m.byType.savings);
+  const debt     = Math.abs(m.byType.credit);
+
+  if (pieChart) pieChart.destroy();
+
+  pieChart = new Chart(canvas, {
+    type: 'doughnut',
+    data: {
+      labels: ['Current accounts', 'Savings & ISAs', 'Credit / debt'],
+      datasets: [{
+        data: [current, savings, debt],
+        backgroundColor: ['#378ADD', '#1D9E75', '#D85A30'],
+        borderWidth: 0,
+        hoverOffset: 6,
+      }]
+    },
+    options: {
+      responsive: true,
+      cutout: '62%',
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: { boxWidth: 10, padding: 14, font: { size: 11 }, color: textColor }
+        },
+        tooltip: {
+          callbacks: {
+            label: ctx => ' £' + ctx.parsed.toLocaleString('en-GB')
+          }
+        }
+      }
+    }
+  });
 }
 
 // ── Sheet sync ─────────────────────────────────────────────────
