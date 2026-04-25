@@ -221,8 +221,9 @@ const ACCOUNTS = [
 // countInTotal: true  → included in net worth (standalone money)
 // countInTotal: false → display only, already counted via account columns
 const SAVINGS = [
-  { key: 'MSav',       name: 'Monzo Savings',    icon: '💰', color: '#1D9E75', countInTotal: false },
-  { key: 'MEmerg',     name: 'Monzo Emergency',  icon: '🛡️', color: '#378ADD', countInTotal: false },
+  { key: 'MSavH',      name: 'Monzo Savings (Hoa)',  icon: '💰', color: '#1D9E75', countInTotal: false },
+  { key: 'MSavL',      name: 'Monzo Savings (Luan)', icon: '💰', color: '#1D9E75', countInTotal: false },
+  { key: 'MEmerg',     name: 'Monzo Emergency',      icon: '🛡️', color: '#378ADD', countInTotal: false },
   { key: 'TISA',       name: 'Cash ISA',         icon: '📈', color: '#7F77DD', countInTotal: false },
   { key: 'TISA_Invi',  name: 'Cash ISA (Invi)',  icon: '📈', color: '#7F77DD', countInTotal: false },
   { key: 'MInv',       name: 'Investment',       icon: '📊', color: '#7F77DD', countInTotal: false },
@@ -281,7 +282,7 @@ function calc() {
   const joint = OWNER_KEYS.joint.reduce((s,k) => s + (balances[k]||0), 0);
   const byType = {
     current: ACCOUNTS.filter(a=>a.type==='current').reduce((s,a)=>s+(balances[a.key]||0),0),
-    savings: ACCOUNTS.filter(a=>a.type==='savings').reduce((s,a)=>s+(balances[a.key]||0),0) + savingsTotal + SAVINGS.filter(a=>!a.countInTotal).reduce((s,a)=>s+(balances[a.key]||0),0),
+    savings: SAVINGS.filter(a=>!a.countInTotal).reduce((s,a)=>s+(balances[a.key]||0),0) + savingsTotal,
     credit: debt,
   };
   return { acctTotal, debt, savingsTotal, netWorth, luan, hoa, joint, byType };
