@@ -221,20 +221,23 @@ const ACCOUNTS = [
 // countInTotal: true  → included in net worth (standalone money)
 // countInTotal: false → display only, already counted via account columns
 const SAVINGS = [
-  { key: 'MSavH',      name: 'Monzo Savings (Hoa)',  icon: '💰', color: '#1D9E75', countInTotal: false },
-  { key: 'MSavL',      name: 'Monzo Savings (Luan)', icon: '💰', color: '#1D9E75', countInTotal: false },
-  { key: 'MEmerg',     name: 'Monzo Emergency',      icon: '🛡️', color: '#378ADD', countInTotal: false },
-  { key: 'TISA',       name: 'Cash ISA',         icon: '📈', color: '#7F77DD', countInTotal: false },
-  { key: 'TISA_Invi',  name: 'Cash ISA (Invi)',  icon: '📈', color: '#7F77DD', countInTotal: false },
-  { key: 'MInv',       name: 'Investment',       icon: '📊', color: '#7F77DD', countInTotal: false },
-  { key: 'MWants',     name: 'Wants Pot',        icon: '🎯', color: '#D85A30', countInTotal: false },
-  { key: 'MTravel',    name: 'Travel Pot',       icon: '✈️', color: '#0F6E56', countInTotal: false },
-  { key: 'Emergency',  name: 'Emergency Fund',   icon: '🛡️', color: '#185FA5', countInTotal: true  },
-  { key: 'Returns',    name: 'Returns Due',      icon: '↩️', color: '#6B7280', countInTotal: true  },
+  // Pots — real separate balances (NOT already in account columns above)
+  // countInTotal: true  = real money, added to net worth
+  // countInTotal: false = mental blocker / already counted elsewhere
+  { key: 'MSavH',     name: 'Monzo Savings (Hoa)',  icon: '💰', color: '#1D9E75', countInTotal: true  },
+  { key: 'MSavL',     name: 'Monzo Savings (Luan)', icon: '💰', color: '#1D9E75', countInTotal: true  },
+  { key: 'MEmerg',    name: 'Monzo Emergency',      icon: '🛡️', color: '#378ADD', countInTotal: true  },
+  { key: 'TISA',      name: 'Cash ISA',             icon: '📈', color: '#7F77DD', countInTotal: true  },
+  { key: 'TISA_Invi', name: 'Cash ISA (Invi)',      icon: '📈', color: '#7F77DD', countInTotal: true  },
+  { key: 'MInv',      name: 'Investment',           icon: '📊', color: '#7F77DD', countInTotal: true  },
+  { key: 'MWants',    name: 'Wants Pot',            icon: '🎯', color: '#D85A30', countInTotal: true  },
+  { key: 'MTravel',   name: 'Travel Pot',           icon: '✈️', color: '#0F6E56', countInTotal: true  },
+  { key: 'Emergency', name: 'Emergency Fund (mental blocker)', icon: '🛡️', color: '#185FA5', countInTotal: false },
+  { key: 'Returns',   name: 'Returns Due',          icon: '↩️', color: '#6B7280', countInTotal: true  },
   //
   // ── ADD NEW POTS ABOVE THIS LINE ──────────────────────────────
-  // countInTotal: true  = standalone money not in any account column
-  // countInTotal: false = already tracked via an account column
+  // countInTotal: true  = real separate pot balance
+  // countInTotal: false = mental blocker, already counted in accounts/pots above
 ];
 
 // ── PER-PERSON SUBTOTALS ─────────────────────────────────────────
