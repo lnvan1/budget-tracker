@@ -516,7 +516,12 @@ async function fetchHistory() {
 
     if (data.success && data.history) {
       historyCache = { range: chartRange, data: data.history };
-      drawLine(data.history);
+      if (data.history.length === 0 && data.debug) {
+        const el = document.getElementById('line-loading');
+        if (el) el.textContent = `No data found (scanned ${data.debug.totalRows} rows over ${data.debug.days} days) — try 1Y range`;
+      } else {
+        drawLine(data.history);
+      }
     } else {
       const el = document.getElementById('line-loading');
       if (el) el.textContent = 'Error: ' + (data.error || 'Could not load history');
