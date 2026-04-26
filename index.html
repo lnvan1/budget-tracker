@@ -247,6 +247,15 @@ const OWNER_KEYS = {
   joint: ['C', 'MJ'],
 };
 
+// ── READ-ONLY DISPLAY KEYS ──────────────────────────────────────
+// These are formula columns read from the sheet for display only.
+// Do not add them to ACCOUNTS or SAVINGS — they are not editable inputs.
+const READONLY_KEYS = [
+  { key: 'Cash',      label: 'On-hand cash',         col: 25 },
+  { key: 'TotalAJ',   label: 'Core savings (no ITW)', col: 36 },
+  { key: 'TotalFull', label: 'Total (sheet)',          col: 24 },
+];
+
 // ═══════════════════════════════════════════════════════════════
 //  No need to edit below this line
 // ═══════════════════════════════════════════════════════════════
@@ -316,14 +325,23 @@ function renderDashboard() {
     <div class="nw-card">
       <div class="nw-label">Net Worth</div>
       <div class="nw-value" style="color:${nwColor}">${fmt(m.netWorth)}</div>
-      <div class="nw-sub">Total · ${fmt(m.acctTotal + m.debt)} in accounts · ${fmt(m.savingsTotal)} saved</div>
+      <div class="nw-sub">Accounts ${fmt(m.acctTotal + m.debt)} · Savings ${fmt(m.savingsTotal)}</div>
+      ${balances['Cash'] ? `<div class="nw-sub" style="margin-top:2px;">On-hand cash: <strong>${fmt(balances['Cash'])}</strong></div>` : ''}
     </div>
     <div class="metric-grid">
       <div class="metric"><div class="metric-label">Luan accounts</div><div class="metric-value c-blue">${fmt(m.luan)}</div></div>
       <div class="metric"><div class="metric-label">Hoa accounts</div><div class="metric-value c-purple">${fmt(m.hoa)}</div></div>
-      <div class="metric"><div class="metric-label">Savings & pots</div><div class="metric-value c-green">${fmt(m.savingsTotal)}</div></div>
+      <div class="metric"><div class="metric-label">All savings & pots</div><div class="metric-value c-green">${fmt(m.savingsTotal)}</div></div>
       <div class="metric"><div class="metric-label">Debt</div><div class="metric-value c-red">${fmt(m.debt)}</div></div>
     </div>
+    ${balances['TotalAJ'] ? `<div class="breakdown-card" style="margin-bottom:12px;">
+      <div class="breakdown-title">Core savings view (no Investment · Travel · Wants)</div>
+      <div class="breakdown-row"><span class="breakdown-name"><span class="dot" style="background:#185FA5"></span>Emergency fund</span><span class="breakdown-amount">${fmt(balances['Emergency']||0)}</span></div>
+      <div class="breakdown-row"><span class="breakdown-name"><span class="dot" style="background:#378ADD"></span>Emergency 2 (Monzo)</span><span class="breakdown-amount">${fmt(balances['MEmerg']||0)}</span></div>
+      <div class="breakdown-row"><span class="breakdown-name"><span class="dot" style="background:#1D9E75"></span>Savings pots</span><span class="breakdown-amount">${fmt((balances['MSavH']||0)+(balances['MSavL']||0))}</span></div>
+      <div class="breakdown-row"><span class="breakdown-name"><span class="dot" style="background:#7F77DD"></span>Cash ISA</span><span class="breakdown-amount">${fmt(balances['TISA']||0)}</span></div>
+      <div class="breakdown-row" style="border-top:1px solid var(--border); margin-top:2px; padding-top:10px;"><span style="font-weight:600;">Core total</span><span style="font-weight:600; color:var(--green)">${fmt(balances['TotalAJ'])}</span></div>
+    </div>` : ''}
     <div class="breakdown-card">
       <div class="breakdown-title">By type</div>
       <div class="breakdown-row"><span class="breakdown-name"><span class="dot" style="background:#378ADD"></span>Current accounts</span><span class="breakdown-amount">${fmt(m.byType.current)}</span></div>
@@ -486,8 +504,15 @@ async function fetchHistory() {
 
   try {
     const url = `${cfg.scriptUrl}?action=history&days=${chartRange}&token=${encodeURIComponent(cfg.secretToken)}`;
-    const res = await fetch(url);
-    const data = await res.json();
+    const res = await fetch(url, { redirect: 'follow' });
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); } catch(pe) {
+      const el = document.getElementById('line-loading');
+      if (el) el.textContent = 'Bad response from sheet — redeploy Apps Script';
+      console.error('History parse error:', text.slice(0, 200));
+      return;
+    }
 
     if (data.success && data.history) {
       historyCache = { range: chartRange, data: data.history };
@@ -499,6 +524,7 @@ async function fetchHistory() {
   } catch(e) {
     const el = document.getElementById('line-loading');
     if (el) el.textContent = 'Connection failed — check settings';
+    console.error('History fetch error:', e);
   }
 }
 
@@ -649,7 +675,7 @@ async function syncFromSheet() {
 
   try {
     const url = cfg.scriptUrl + '?action=read&token=' + encodeURIComponent(cfg.secretToken);
-    const res = await fetch(url);
+    const res = await fetch(url, { redirect: 'follow' });
     const data = await res.json();
 
     if (data.success && data.balances) {
@@ -689,6 +715,7 @@ async function saveToSheet() {
   try {
     const res = await fetch(cfg.scriptUrl, {
       method: 'POST',
+      redirect: 'follow',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'write', token: cfg.secretToken, balances })
     });
