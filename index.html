@@ -326,10 +326,9 @@ function renderDashboard() {
       <button class="sync-btn primary" onclick="saveToSheet()" id="push-btn">↑ Save to Sheet</button>
     </div>
     <div class="nw-card">
-      <div class="nw-label">Net Worth</div>
-      <div class="nw-value" style="color:${nwColor}">${fmt(m.netWorth)}</div>
+      <div class="nw-label">Cash on hand</div>
+      <div class="nw-value" style="color:var(--green)">${balances['Cash'] ? fmt(balances['Cash']) : fmt(m.acctTotal + m.debt)}</div>
       <div class="nw-sub">Accounts ${fmt(m.acctTotal + m.debt)} · Savings ${fmt(m.savingsTotal)}</div>
-      ${balances['Cash'] ? `<div class="nw-sub" style="margin-top:2px;">On-hand cash: <strong>${fmt(balances['Cash'])}</strong></div>` : ''}
     </div>
     <div class="metric-grid">
       <div class="metric"><div class="metric-label">Luan accounts</div><div class="metric-value c-blue">${fmt(m.luan)}</div></div>
@@ -721,13 +720,16 @@ async function saveToSheet() {
   if (btn) btn.disabled = true;
 
   try {
-    const res = await fetch(cfg.scriptUrl, {
-      method: 'POST',
-      redirect: 'follow',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'write', token: cfg.secretToken, balances })
-    });
-    const data = await res.json();
+    // Apps Script drops POST body on redirect, so encode payload in URL
+    const payload = encodeURIComponent(JSON.stringify({ action: 'write', token: cfg.secretToken, balances }));
+    const res = await fetch(cfg.scriptUrl + '?payload=' + payload, { redirect: 'follow' });
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); } catch(e) {
+      toast('Bad response — redeploy Apps Script');
+      if (btn) { btn.innerHTML = orig; btn.disabled = false; }
+      return;
+    }
 
     if (data.success) {
       const now = new Date().toLocaleString('en-GB', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
